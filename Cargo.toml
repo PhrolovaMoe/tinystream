@@ -1,0 +1,18 @@
+[workspace]
+resolver = "3"
+members = ["tinyserver"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+authors = ["Phrolova <me@phrolova.moe>"]
+repository = "https://github.com/PhrolovaMoe/tinystream"
+homepage = "https://github.com/PhrolovaMoe/tinystream"
+license-file = "./LICENSE"
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+strip = "symbols"
+
+[workspace.dependencies]
