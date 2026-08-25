@@ -16,3 +16,11 @@ codegen-units = 1
 strip = "symbols"
 
 [workspace.dependencies]
+axum = "0.8.9"
+dirs = "6.0.0"
+reqwest = "0.13.4"
+serde = { version = "1.0.229", features = ["derive"] }
+sqlx = { version = "0.9.0", features = ["sqlite"] }
+tokio = { version = "1.53.1", features = ["macros", "rt-multi-thread"] }
+toml = "1.1.4"
+walkdir = "2.5.0"
