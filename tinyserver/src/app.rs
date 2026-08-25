@@ -9,10 +9,10 @@ pub struct AppState {
     pub database: SqlitePool,
 }
 
-pub fn router(database: SqlitePool) -> Router {
+pub fn router(state: AppState) -> Router {
     let router = Router::new()
         .route("/health", get(health))
-        .with_state(AppState { database });
+        .with_state(state);
 
     #[cfg(debug_assertions)]
     let router = router.layer(axum::middleware::from_fn(crate::request_log::log_request));

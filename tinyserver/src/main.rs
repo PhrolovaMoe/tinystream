@@ -31,5 +31,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
     tracing_subscriber::fmt::init();
 
     let database = database::connect().await?;
-    server::run(app::router(database)).await
+    let state = app::AppState { database };
+    server::run(app::router(state.clone()), state).await
 }

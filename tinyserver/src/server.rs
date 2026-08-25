@@ -7,15 +7,16 @@ use tokio::{net::TcpListener, signal, sync::oneshot};
 use tracing::{error, info, warn};
 
 use crate::{
+    app::AppState,
     config::{self, Config},
     library,
 };
 
-pub async fn run(app: Router) -> Result<(), Box<dyn Error>> {
+pub async fn run(app: Router, state: AppState) -> Result<(), Box<dyn Error>> {
     let config_path = config::path()?;
     let (_watcher, mut changes) = config::watch(&config_path)?;
     let mut current = Config::load(&config_path)?;
-    walk_libraries(&current);
+    walk_libraries(&current, &state).await;
     let mut listener = TcpListener::bind(current.socket_addr()).await?;
     let shutdown = shutdown_signal();
     tokio::pin!(shutdown);
@@ -61,7 +62,7 @@ pub async fn run(app: Router) -> Result<(), Box<dyn Error>> {
                         continue;
                     }
 
-                    walk_libraries(&updated);
+                    walk_libraries(&updated, &state).await;
 
                     if updated.socket_addr() == current.socket_addr() {
                         info!("configuration reloaded");
@@ -89,16 +90,16 @@ pub async fn run(app: Router) -> Result<(), Box<dyn Error>> {
     }
 }
 
-fn walk_libraries(config: &Config) {
+async fn walk_libraries(config: &Config, state: &AppState) {
     for configured in &config.library {
-        let mut files = 0_u64;
+        let mut files = Vec::new();
         let mut errors = 0_u64;
 
         for entry in library::walk(configured) {
             match entry {
                 Ok(file) => {
-                    files += 1;
                     tracing::debug!(library = %configured.name, path = %file.path.display(), "library file found");
+                    files.push(file);
                 }
                 Err(error) => {
                     errors += 1;
@@ -107,7 +108,25 @@ fn walk_libraries(config: &Config) {
             }
         }
 
-        info!(library = %configured.name, path = %configured.path.display(), files, errors, "library walked");
+        if errors == 0 {
+            match library::cache_scan(&state.database, configured, &files).await {
+                Ok(summary) => info!(
+                    library = %configured.name,
+                    path = %configured.path.display(),
+                    files = files.len(),
+                    new = summary.new,
+                    changed = summary.changed,
+                    unchanged = summary.unchanged,
+                    removed = summary.removed,
+                    "library walked and cached"
+                ),
+                Err(error) => {
+                    error!(library = %configured.name, path = %configured.path.display(), %error, "failed to cache library walk")
+                }
+            }
+        } else {
+            warn!(library = %configured.name, path = %configured.path.display(), files = files.len(), errors, "library walked with errors; cache left unchanged");
+        }
     }
 }
 

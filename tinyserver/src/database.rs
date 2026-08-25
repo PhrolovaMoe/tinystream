@@ -16,7 +16,13 @@ pub fn path() -> Result<PathBuf, io::Error> {
 }
 
 pub async fn connect() -> Result<SqlitePool, Box<dyn std::error::Error>> {
-    connect_at(path()?).await
+    let pool = connect_at(path()?).await?;
+    migrate(&pool).await?;
+    Ok(pool)
+}
+
+pub(crate) async fn migrate(pool: &SqlitePool) -> Result<(), sqlx::migrate::MigrateError> {
+    sqlx::migrate!().run(pool).await
 }
 
 async fn connect_at(path: PathBuf) -> Result<SqlitePool, Box<dyn std::error::Error>> {
@@ -54,6 +60,7 @@ mod tests {
         let path = root.join("nested/database.sqlite3");
 
         let pool = connect_at(path.clone()).await.unwrap();
+        migrate(&pool).await.unwrap();
         let foreign_keys: i64 = sqlx::query_scalar("PRAGMA foreign_keys")
             .fetch_one(&pool)
             .await
@@ -61,6 +68,15 @@ mod tests {
 
         assert!(path.is_file());
         assert_eq!(foreign_keys, 1);
+        assert_eq!(
+            sqlx::query_scalar::<_, String>(
+                "SELECT name FROM sqlite_schema WHERE type = 'table' AND name = 'library_files'",
+            )
+            .fetch_one(&pool)
+            .await
+            .unwrap(),
+            "library_files"
+        );
 
         pool.close().await;
         std::fs::remove_dir_all(root).unwrap();
