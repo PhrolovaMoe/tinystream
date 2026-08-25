@@ -17,12 +17,21 @@ use tokio::sync::mpsc;
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
 pub struct Config {
     pub network: Network,
+    #[serde(default)]
+    pub library: Vec<Library>,
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
 pub struct Network {
     pub address: IpAddr,
     pub port: u16,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
+pub struct Library {
+    pub name: String,
+    pub path: PathBuf,
+    pub metadata_provider: Option<String>,
 }
 
 impl Config {

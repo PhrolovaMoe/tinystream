@@ -18,6 +18,7 @@
 
 mod app;
 mod config;
+mod library;
 #[cfg(debug_assertions)]
 mod request_log;
 mod server;

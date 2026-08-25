@@ -4,14 +4,18 @@ use std::{error::Error, future::IntoFuture, net::SocketAddr};
 
 use axum::Router;
 use tokio::{net::TcpListener, signal, sync::oneshot};
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
-use crate::config::{self, Config};
+use crate::{
+    config::{self, Config},
+    library,
+};
 
 pub async fn run(app: Router) -> Result<(), Box<dyn Error>> {
     let config_path = config::path()?;
     let (_watcher, mut changes) = config::watch(&config_path)?;
     let mut current = Config::load(&config_path)?;
+    walk_libraries(&current);
     let mut listener = TcpListener::bind(current.socket_addr()).await?;
     let shutdown = shutdown_signal();
     tokio::pin!(shutdown);
@@ -57,6 +61,14 @@ pub async fn run(app: Router) -> Result<(), Box<dyn Error>> {
                         continue;
                     }
 
+                    walk_libraries(&updated);
+
+                    if updated.socket_addr() == current.socket_addr() {
+                        info!("configuration reloaded");
+                        current = updated;
+                        continue;
+                    }
+
                     let replacement = match TcpListener::bind(updated.socket_addr()).await {
                         Ok(listener) => listener,
                         Err(error) => {
@@ -74,6 +86,28 @@ pub async fn run(app: Router) -> Result<(), Box<dyn Error>> {
                 }
             }
         }
+    }
+}
+
+fn walk_libraries(config: &Config) {
+    for configured in &config.library {
+        let mut files = 0_u64;
+        let mut errors = 0_u64;
+
+        for entry in library::walk(configured) {
+            match entry {
+                Ok(file) => {
+                    files += 1;
+                    tracing::debug!(library = %configured.name, path = %file.path.display(), "library file found");
+                }
+                Err(error) => {
+                    errors += 1;
+                    warn!(library = %configured.name, path = %configured.path.display(), %error, "failed to walk library entry");
+                }
+            }
+        }
+
+        info!(library = %configured.name, path = %configured.path.display(), files, errors, "library walked");
     }
 }
 
