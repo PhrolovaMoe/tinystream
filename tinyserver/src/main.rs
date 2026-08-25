@@ -16,6 +16,17 @@
 // License along with this program. If not, see
 // <https://www.gnu.org/licenses/>.
 
-fn main() {
-    println!("Hello, world!");
+mod app;
+mod config;
+#[cfg(debug_assertions)]
+mod request_log;
+mod server;
+
+use std::error::Error;
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn Error>> {
+    tracing_subscriber::fmt::init();
+
+    server::run(app::router()).await
 }
