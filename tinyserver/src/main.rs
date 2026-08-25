@@ -18,6 +18,7 @@
 
 mod app;
 mod config;
+mod database;
 mod library;
 #[cfg(debug_assertions)]
 mod request_log;
@@ -29,5 +30,6 @@ use std::error::Error;
 async fn main() -> Result<(), Box<dyn Error>> {
     tracing_subscriber::fmt::init();
 
-    server::run(app::router()).await
+    let database = database::connect().await?;
+    server::run(app::router(database)).await
 }
